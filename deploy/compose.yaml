@@ -1,0 +1,44 @@
+name: devfest-identity
+# Layout: workspace/{travel-domain,expense-domain,identity-inspector,travel-agent}
+# Deploy from workspace/travel-agent/deploy; adjust *_CONTEXT if different.
+services:
+  travel-mcp:
+    build: {context: '${TRAVEL_CONTEXT:-../../travel-domain}'}
+    environment:
+      PORT: '8080'
+      KEYCLOAK_ISSUER: ${TRAVEL_ISSUER:?required}
+      JWT_AUDIENCE: ${TRAVEL_AUDIENCE:-travel-mcp}
+      DEMO_SECURITY_MODE: delegated
+    ports: ['127.0.0.1:${TRAVEL_PORT:-18081}:8080']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+  expense-mcp:
+    build: {context: '${EXPENSE_CONTEXT:-../../expense-domain}'}
+    environment:
+      PORT: '8080'
+      KEYCLOAK_ISSUER: ${TRAVEL_ISSUER:?required}
+      JWT_AUDIENCE: ${EXPENSE_AUDIENCE:-expense-mcp}
+      DEMO_SECURITY_MODE: delegated
+    ports: ['127.0.0.1:${EXPENSE_PORT:-18082}:8080']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+  inspector:
+    build: {context: '${INSPECTOR_CONTEXT:-../../identity-inspector}'}
+    environment:
+      PORT: '8090'
+      INSPECTOR_API_KEY: ${INSPECTOR_API_KEY:?required}
+      INSPECTOR_DEMO_ENABLED: 'false'
+    ports: ['127.0.0.1:${INSPECTOR_PORT:-18090}:8090']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+  travel-agent:
+    profiles: ['local-agent']
+    build: {context: '..'}
+    env_file: ['../.env']
+    environment:
+      PORT: '8080'
+      INSPECTOR_URL: http://inspector:8090
+      INSPECTOR_API_KEY: ${INSPECTOR_API_KEY:?required}
+    ports: ['127.0.0.1:${AGENT_PORT:-18085}:8080']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']

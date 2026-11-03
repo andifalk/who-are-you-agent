@@ -1,0 +1,9 @@
+services:
+  expense-mcp:
+    build: .
+    ports:
+      - "127.0.0.1:8082:8080"
+    environment:
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?Set KEYCLOAK_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-expense-mcp}
+      DEMO_SECURITY_MODE: ${DEMO_SECURITY_MODE:-delegated}

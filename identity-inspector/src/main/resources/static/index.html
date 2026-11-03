@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <title>Identity Inspector · Who Are You, Agent?</title>
+    <style>
+        :root {
+            font-family: Inter, system-ui, -apple-system, sans-serif;
+            color: #e8edf7;
+            background: #0b1020
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0
+        }
+
+        .wrap {
+            max-width: 1180px;
+            margin: auto;
+            padding: 28px
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap
+        }
+
+        h1 {
+            font-size: 27px;
+            margin: 0 0 5px
+        }
+
+        h2 {
+            font-size: 15px;
+            margin: 0 0 15px
+        }
+
+        p {
+            color: #9caec8;
+            margin: 4px 0
+        }
+
+        .pill {
+            border: 1px solid #3c4a66;
+            border-radius: 100px;
+            padding: 6px 12px;
+            color: #b7c5da;
+            font-size: 12px
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns:1.1fr .9fr;
+            gap: 18px;
+            margin-top: 22px
+        }
+
+        .panel {
+            background: #151e33;
+            border: 1px solid #2c3853;
+            border-radius: 14px;
+            padding: 20px
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns:1fr 1fr;
+            gap: 12px
+        }
+
+        .metric {
+            background: #0e172a;
+            border-radius: 9px;
+            padding: 12px;
+            min-height: 68px
+        }
+
+        .label {
+            color: #91a3c0;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .08em
+        }
+
+        .value {
+            font-size: 14px;
+            font-weight: 650;
+            margin-top: 7px;
+            overflow-wrap: anywhere
+        }
+
+        .allow {
+            color: #6de5b4
+        }
+
+        .deny {
+            color: #ff8b96
+        }
+
+        .event {
+            border-left: 3px solid #54647c;
+            background: #0e172a;
+            border-radius: 7px;
+            margin: 10px 0;
+            padding: 12px
+        }
+
+        .event.allow {
+            border-color: #34d399
+        }
+
+        .event.deny {
+            border-color: #fb7185
+        }
+
+        .event-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-weight: 700
+        }
+
+        .muted {
+            font-size: 12px;
+            color: #a7b6cb;
+            margin-top: 7px;
+            overflow-wrap: anywhere
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 18px
+        }
+
+        button {
+            background: #3345a4;
+            color: white;
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 13px;
+            cursor: pointer
+        }
+
+        button.secondary {
+            background: #27354f
+        }
+
+        input {
+            background: #0e172a;
+            color: white;
+            border: 1px solid #465777;
+            padding: 9px;
+            border-radius: 8px;
+            min-width: 200px
+        }
+
+        .log {
+            max-height: 520px;
+            overflow: auto
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #a7b6cb;
+            margin-top: 14px
+        }
+
+        code {
+            color: #9ac4ff
+        }
+
+        @media (max-width: 780px) {
+            .layout {
+                grid-template-columns:1fr
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <div><h1>Identity Inspector</h1>
+            <p>Who Are You, Agent? · Travel Booking & Expenses</p></div>
+        <span class="pill" id="connection">Connecting…</span></header>
+    <div class="controls"><input autocomplete="off" id="key" placeholder="Inspector API key (demo actions)"
+                                 type="password">
+        <button data-mode="insecure">Demo 1 · Insecure</button>
+        <button data-mode="delegated">Demo 2 · Delegated</button>
+        <button data-mode="agent-identity">Demo 3 · Agent Identity</button>
+        <button class="secondary" id="clear">Clear</button>
+    </div>
+    <div class="layout">
+        <section class="panel"><h2>Current security context</h2>
+            <div class="metrics" id="metrics">
+                <div class="metric">
+                    <div class="label">Waiting for events</div>
+                    <div class="value">—</div>
+                </div>
+            </div>
+            <p class="hint">Displays submitted, sanitized security events; it does not independently validate OAuth or
+                SPIFFE credentials.</p></section>
+        <section class="panel"><h2>Authorization timeline</h2>
+            <div class="log" id="log"><p>No events yet.</p></div>
+        </section>
+    </div>
+    <p class="hint">POST events from Travel Agent, Travel MCP or Expense MCP to <code>/api/events</code> using <code>X-Inspector-Key</code>.
+        Avoid sending raw tokens or secrets. Demo buttons generate illustrative events.</p></div>
+<script>
+    const log = document.querySelector('#log'), metrics = document.querySelector('#metrics'),
+        connection = document.querySelector('#connection');
+    let events = [];
+
+    function el(tag, cls, text) {
+        const x = document.createElement(tag);
+        if (cls) x.className = cls;
+        if (text !== undefined) x.textContent = text;
+        return x
+    }
+
+    function render() {
+        log.replaceChildren();
+        if (!events.length) log.append(el('p', '', 'No events yet.'));
+        for (const e of [...events].reverse()) {
+            const box = el('div', 'event ' + (e.decision === 'ALLOW' ? 'allow' : 'deny'));
+            const top = el('div', 'event-top');
+            top.append(el('span', '', e.tool || 'unknown'), el('span', e.decision === 'ALLOW' ? 'allow' : 'deny', e.decision || '?'));
+            box.append(top, el('div', 'muted', (e.timestamp || '') + ' · ' + (e.phase || '') + ' · ' + (e.correlationId || '')), el('div', 'muted', e.reason || ''));
+            log.append(box)
+        }
+        const e = events.at(-1);
+        if (!e) return;
+        metrics.replaceChildren();
+        for (const [label, val] of [['Human', e.human], ['Agent', e.agent], ['Issuer', e.issuer], ['Audience', e.audience], ['Scopes', e.scopes], ['SPIFFE identity', e.spiffeId], ['Tool', e.tool], ['Decision', e.decision]]) {
+            const cell = el('div', 'metric');
+            cell.append(el('div', 'label', label), el('div', 'value ' + (label === 'Decision' ? (val === 'ALLOW' ? 'allow' : 'deny') : ''), val || '—'));
+            metrics.append(cell)
+        }
+    }
+
+    async function load() {
+        try {
+            const r = await fetch('/api/history');
+            if (r.ok) {
+                events = await r.json();
+                render()
+            }
+        } catch {
+        }
+    }
+
+    const stream = new EventSource('/api/events');
+    stream.addEventListener('ready', () => connection.textContent = 'Live · SSE connected');
+    stream.addEventListener('inspector-event', e => {
+        events.push(JSON.parse(e.data));
+        if (events.length > 200) events.shift();
+        render()
+    });
+    stream.onerror = () => connection.textContent = 'Disconnected · reconnecting';
+
+    async function action(path) {
+        const key = document.querySelector('#key').value;
+        if (!key) {
+            alert('Enter the Inspector API key.');
+            return
+        }
+        const r = await fetch(path, {method: 'POST', headers: {'X-Inspector-Key': key}});
+        if (!r.ok) alert('Request failed: ' + r.status); else if (path.endsWith('/clear')) {
+            events = [];
+            render()
+        }
+    }
+
+    document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => action('/api/demo/' + b.dataset.mode)));
+    document.querySelector('#clear').addEventListener('click', () => action('/api/clear'));
+    load();
+</script>
+</body>
+</html>

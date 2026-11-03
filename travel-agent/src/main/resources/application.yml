@@ -1,0 +1,56 @@
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true}
+        same-site: lax
+spring:
+  application:
+    name: travel-agent
+  security:
+    oauth2:
+      client:
+        registration:
+          corporate:
+            provider: corporate
+            client-id: ${CORPORATE_CLIENT_ID:travel-agent-bff}
+            client-secret: ${CORPORATE_CLIENT_SECRET:}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid,profile,email
+        provider:
+          corporate:
+            issuer-uri: ${CORPORATE_ISSUER:https://keycloak.agile-dev.de/realms/corporate}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+demo:
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
+  travel-mcp-url: ${TRAVEL_MCP_URL:https://travel.agile-dev.de/mcp}
+  expense-mcp-url: ${EXPENSE_MCP_URL:https://expense.agile-dev.de/mcp}
+  corporate-issuer: ${CORPORATE_ISSUER:https://keycloak.agile-dev.de/realms/corporate}
+  travel-issuer: ${TRAVEL_ISSUER:https://keycloak.agile-dev.de/realms/travel}
+  corporate-client-id: ${CORPORATE_CLIENT_ID:travel-agent-bff}
+  corporate-client-secret: ${CORPORATE_CLIENT_SECRET:}
+  travel-grant-client-id: ${TRAVEL_GRANT_CLIENT_ID:travel-agent-grant}
+  travel-grant-client-secret: ${TRAVEL_GRANT_CLIENT_SECRET:}
+  insecure-client-id: ${INSECURE_CLIENT_ID:travel-agent-overprivileged}
+  insecure-client-secret: ${INSECURE_CLIENT_SECRET:}
+  travel:
+    audience: ${TRAVEL_AUDIENCE:travel-mcp}
+    scopes: ${TRAVEL_SCOPES:travel.read travel.book}
+  expense:
+    audience: ${EXPENSE_AUDIENCE:expense-mcp}
+    scopes: ${EXPENSE_SCOPES:expenses.create expenses.read}
+  exchange-scope: ${EXCHANGE_SCOPE:access-travel-domain}
+  exchange-audience: ${EXCHANGE_AUDIENCE:https://keycloak.agile-dev.de/realms/travel}
+  inspector-url: ${INSPECTOR_URL:}
+  inspector-api-key: ${INSPECTOR_API_KEY:}
+  agent-identity:
+    enabled: ${GOOGLE_AGENT_IDENTITY_ENABLED:false}
+    verified-proxy-header: ${GOOGLE_AGENT_IDENTITY_VERIFIED_HEADER:}

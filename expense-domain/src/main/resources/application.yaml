@@ -1,0 +1,30 @@
+server:
+  port: ${PORT:8082}
+spring:
+  application:
+    name: expense-domain
+  ai:
+    mcp:
+      server:
+        name: expense-domain
+        version: 1.0.0
+        type: SYNC
+        protocol: STREAMABLE
+        annotation-scanner:
+          enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8080/realms/travel}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+demo:
+  jwt-audience: ${JWT_AUDIENCE:expense-mcp}
+

@@ -1,0 +1,10 @@
+services:
+  travel-agent:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:8085:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp

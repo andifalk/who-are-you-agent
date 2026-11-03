@@ -1,0 +1,9 @@
+services:
+  identity-inspector:
+    build: .
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      INSPECTOR_API_KEY: ${INSPECTOR_API_KEY:?Set INSPECTOR_API_KEY in .env}
+      INSPECTOR_DEMO_ENABLED: ${INSPECTOR_DEMO_ENABLED:-true}
+    restart: unless-stopped

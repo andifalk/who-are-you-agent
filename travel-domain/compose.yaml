@@ -1,0 +1,9 @@
+services:
+  travel-mcp:
+    build: .
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-travel-mcp}
+      DEMO_SECURITY_MODE: ${DEMO_SECURITY_MODE:-delegated}

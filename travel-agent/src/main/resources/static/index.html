@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <title>Who Are You, Agent? · Travel Agent</title>
+    <style>
+        :root {
+            font-family: system-ui, sans-serif;
+            color-scheme: dark;
+            background: #0c1424;
+            color: #e6edf7
+        }
+
+        body {
+            max-width: 980px;
+            margin: 36px auto;
+            padding: 0 20px
+        }
+
+        h1 {
+            font-size: 2rem
+        }
+
+        main {
+            display: grid;
+            grid-template-columns:1fr 300px;
+            gap: 20px
+        }
+
+        section, aside {
+            background: #172338;
+            border: 1px solid #35465e;
+            border-radius: 14px;
+            padding: 22px
+        }
+
+        button, select, textarea {
+            font: inherit
+        }
+
+        select, textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 9px;
+            border: 1px solid #536783;
+            background: #0c1424;
+            color: white
+        }
+
+        textarea {
+            min-height: 105px;
+            box-sizing: border-box
+        }
+
+        button {
+            background: #6da8ff;
+            color: #071525;
+            border: 0;
+            border-radius: 9px;
+            padding: 12px 18px;
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        button:disabled {
+            opacity: .5
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #0c1424;
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 120px
+        }
+
+        small {
+            color: #a8b7cd
+        }
+
+        .hint {
+            font-size: .9rem;
+            color: #b8c9dd
+        }
+
+        a {
+            color: #9bc3ff
+        }
+
+        @media (max-width: 750px) {
+            main {
+                grid-template-columns:1fr
+            }
+        }
+    </style>
+</head>
+<body>
+<h1>Who Are You, Agent?</h1>
+<p>Travel Booking &amp; Expenses · Google ADK for Java · Gemini · Keycloak · MCP</p>
+<main>
+    <section><p id="identity">Lade Anmeldung …</p>
+        <label for="mode">Demo-Modus</label>
+        <select id="mode">
+            <option value="OVERPRIVILEGED">Demo 1 · Overprivileged Agent</option>
+            <option value="DELEGATED">Demo 2 · Delegated Authorization</option>
+            <option value="GOOGLE_AGENT_IDENTITY">Demo 3 · Google Agent Identity</option>
+        </select>
+        <p class="hint">Die Auswahl wechselt ausschließlich die Agent-Credentials, nicht die MCP-Sicherheitsregeln.</p>
+        <label for="message">Anweisung</label>
+        <textarea id="message">Find the cheapest flight from Stuttgart to Berlin next Monday.</textarea>
+        <p>
+            <button id="send">Agent ausführen</button>
+        </p>
+        <pre aria-live="polite" id="output"></pre>
+    </section>
+    <aside><h3>Live-Demo Prompts</h3>
+        <p>
+            <button class="prompt" data-text="Find the cheapest flight from Stuttgart to Berlin next Monday.">Flug
+                suchen
+            </button>
+        </p>
+        <p>
+            <button class="prompt"
+                    data-text="Book flight FL-100 for Alice on next Monday and create the corresponding expense report.">
+                Buchen &amp; Expense
+            </button>
+        </p>
+        <p>
+            <button class="prompt" data-text="Approve expense EXP-8000 for 8000 EUR.">EXP-8000 genehmigen</button>
+        </p>
+        <p><small>Erwartung: Demo 1 erlaubt die Genehmigung bei passendem Service-Account-Token. Demo 2 verweigert sie
+            serverseitig.</small></p>
+        <p><a href="/logout" id="logout">Abmelden (POST)</a></p>
+    </aside>
+</main>
+<script>
+    const csrfCookie = document.cookie.split('; ').find(x => x.startsWith('XSRF-TOKEN='));
+    const csrf = csrfCookie ? decodeURIComponent(csrfCookie.split('=')[1]) : null;
+    const headers = {'Content-Type': 'application/json', ...(csrf ? {'X-XSRF-TOKEN': csrf} : {})};
+
+    async function api(url, body) {
+        const r = await fetch(url, {method: 'POST', headers, body: JSON.stringify(body)});
+        if (!r.ok) throw Error('HTTP ' + r.status + ' ' + await r.text());
+        return r.json()
+    }
+
+    fetch('/api/session').then(r => r.json()).then(x => {
+        document.querySelector('#identity').textContent = 'Angemeldet: ' + x.user;
+        document.querySelector('#mode').value = x.mode
+    });
+    document.querySelector('#mode').addEventListener('change', async e => {
+        try {
+            await api('/api/mode', {mode: e.target.value});
+            document.querySelector('#output').textContent = 'Modus geändert'
+        } catch (err) {
+            document.querySelector('#output').textContent = err.message
+        }
+    });
+    document.querySelectorAll('.prompt').forEach(b => b.onclick = () => document.querySelector('#message').value = b.dataset.text);
+    document.querySelector('#send').onclick = async () => {
+        const b = document.querySelector('#send');
+        b.disabled = true;
+        document.querySelector('#output').textContent = 'Agent arbeitet …';
+        try {
+            const x = await api('/api/chat', {message: document.querySelector('#message').value});
+            document.querySelector('#output').textContent = x.text + '\n\nCorrelation ID: ' + x.correlationId
+        } catch (err) {
+            document.querySelector('#output').textContent = err.message
+        } finally {
+            b.disabled = false
+        }
+    };
+    document.querySelector('#logout').onclick = async e => {
+        e.preventDefault();
+        await fetch('/logout', {method: 'POST', headers});
+        location.href = '/'
+    };
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+server:
+  port: ${PORT:8081}
+spring:
+  application:
+    name: travel-domain
+  ai:
+    mcp:
+      server:
+        name: travel-mcp
+        version: 1.0.0
+        protocol: STREAMABLE
+        type: SYNC
+        annotation-scanner:
+          enabled: true
+        instructions: "Simulated Stuttgart to Berlin business travel. No real bookings."
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8080/realms/travel}
+
+demo:
+  security:
+    audience: ${JWT_AUDIENCE:travel-mcp}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

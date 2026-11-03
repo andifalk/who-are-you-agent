@@ -1,0 +1,14 @@
+server:
+  port: ${PORT:8090}
+  forward-headers-strategy: framework
+spring:
+  application:
+    name: identity-inspector
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+inspector:
+  api-key: ${INSPECTOR_API_KEY:}
+  demo-enabled: ${INSPECTOR_DEMO_ENABLED:true}

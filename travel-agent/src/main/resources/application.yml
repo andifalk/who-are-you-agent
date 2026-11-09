@@ -16,11 +16,14 @@ spring:
         registration:
           corporate:
             provider: corporate
-            client-id: ${CORPORATE_CLIENT_ID:travel-agent-bff}
+            client-id: ${CORPORATE_CLIENT_ID:travel-agent}
             client-secret: ${CORPORATE_CLIENT_SECRET:}
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            scope: openid,profile,email
+            scope:
+              - openid
+              - profile
+              - email
         provider:
           corporate:
             issuer-uri: ${CORPORATE_ISSUER:https://keycloak.agile-dev.de/realms/corporate}

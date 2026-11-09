@@ -21,7 +21,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class WebSecurityConfiguration {
 
     @Bean
-    public SecurityFilterChain springSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain travelSecurityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(a -> a.requestMatchers("/actuator/health", "/actuator/info").permitAll().anyRequest().authenticated())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

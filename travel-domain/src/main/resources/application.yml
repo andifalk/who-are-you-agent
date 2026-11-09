@@ -17,7 +17,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8080/realms/travel}
+          issuer-uri: ${KEYCLOAK_ISSUER:https://keycloak.agile-dev.de/realms/travel}
 
 demo:
   security:

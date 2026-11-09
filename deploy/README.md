@@ -66,3 +66,25 @@ The `inspector-local.conf` is optional and only listens on loopback. Do not publ
 - The Agent project has not yet passed a verified Java 25 / Maven / ADK integration build. Google Agent Identity (Demo 3) remains fail-closed pending real credential verification.
 - When deploying services across multiple Netcup hosts, split the Compose services and use host-specific NGINX configs. This file assumes one host.
 - Never put API keys or access tokens in NGINX access logs, Compose YAML, or version control.
+
+## Docker-Images bauen und nach Docker Hub pushen
+
+Neben `docker compose up --build` gibt es pro Service ein Build-Skript, das das Image baut und nach Docker Hub pusht:
+
+```bash
+docker login
+DOCKERHUB_NAMESPACE=<user-oder-org> deploy/build-travel.sh      # travel-domain
+DOCKERHUB_NAMESPACE=<user-oder-org> deploy/build-expenses.sh    # expense-domain
+DOCKERHUB_NAMESPACE=<user-oder-org> deploy/build-inspector.sh   # identity-inspector
+```
+
+Optionen (Umgebungsvariablen, siehe `deploy/docker-build-common.sh`):
+
+| Variable | Default | Bedeutung |
+|---|---|---|
+| `DOCKERHUB_NAMESPACE` | – (Pflicht) | Docker-Hub-Benutzer/-Organisation |
+| `IMAGE_TAG` | Git-Short-Hash (`-dirty` bei lokalen Änderungen) | Image-Tag |
+| `TAG_LATEST` | `true` | zusätzlich `:latest` taggen und pushen |
+| `PUSH` | `true` | `false` = nur lokal bauen (`--load`) |
+| `PLATFORMS` | `linux/amd64` | z. B. `linux/amd64,linux/arm64` (Multi-Arch nur mit Push) |
+| `IMAGE_NAME` | Projektverzeichnisname | abweichender Repository-Name auf Docker Hub |

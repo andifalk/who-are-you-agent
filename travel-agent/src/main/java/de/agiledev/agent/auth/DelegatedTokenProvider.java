@@ -1,7 +1,7 @@
 package de.agiledev.agent.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import de.agiledev.agent.config.DemoProperties;
 import de.agiledev.agent.inspector.InspectorPublisher;
 import jakarta.servlet.http.HttpServletRequest;
@@ -99,7 +99,7 @@ public class DelegatedTokenProvider {
     }
 
     private String required(JsonNode node, String field) {
-        String value = node.path(field).asText();
+        String value = node.path(field).asString();
         if (value == null || value.isBlank()) throw new IllegalStateException("Token endpoint missing " + field);
         return value;
     }
@@ -118,7 +118,7 @@ public class DelegatedTokenProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted token request", e);
-        } catch (java.io.IOException e) {
+        } catch (java.io.IOException | tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("Token endpoint unavailable", e);
         }
     }

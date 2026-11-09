@@ -52,7 +52,7 @@ demo:
     scopes: ${EXPENSE_SCOPES:expenses.create expenses.read}
   exchange-scope: ${EXCHANGE_SCOPE:access-travel-domain}
   exchange-audience: ${EXCHANGE_AUDIENCE:https://keycloak.agile-dev.de/realms/travel}
-  inspector-url: ${INSPECTOR_URL:}
+  inspector-url: ${INSPECTOR_URL:https://inspector.agile-dev.de}
   inspector-api-key: ${INSPECTOR_API_KEY:}
   agent-identity:
     enabled: ${GOOGLE_AGENT_IDENTITY_ENABLED:false}

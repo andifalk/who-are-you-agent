@@ -1,0 +1,34 @@
+name: devfest-identity
+# Layout: workspace/{travel-domain,expense-domain,identity-inspector,travel-agent}
+# Deploy from workspace/travel-agent/deploy; adjust *_CONTEXT if different.
+services:
+  travel-mcp:
+    image: andifalk/travel-domain:latest
+    environment:
+      PORT: '8081'
+      KEYCLOAK_ISSUER: ${TRAVEL_ISSUER:?required}
+      JWT_AUDIENCE: ${TRAVEL_AUDIENCE:-travel-mcp}
+      DEMO_SECURITY_MODE: delegated
+    ports: ['127.0.0.1:${TRAVEL_PORT:-18081}:8081']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+  expense-mcp:
+    image: andifalk/expense-domain:latest
+    environment:
+      PORT: '8082'
+      KEYCLOAK_ISSUER: ${TRAVEL_ISSUER:?required}
+      JWT_AUDIENCE: ${EXPENSE_AUDIENCE:-expense-mcp}
+      DEMO_SECURITY_MODE: delegated
+    ports: ['127.0.0.1:${EXPENSE_PORT:-18082}:8082']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+  inspector:
+    image: andifalk/identity-inspector:latest
+    environment:
+      PORT: '8090'
+      INSPECTOR_API_KEY: ${INSPECTOR_API_KEY:?required}
+      INSPECTOR_DEMO_ENABLED: 'false'
+    ports: ['127.0.0.1:${INSPECTOR_PORT:-18090}:8090']
+    restart: unless-stopped
+    security_opt: ['no-new-privileges:true']
+

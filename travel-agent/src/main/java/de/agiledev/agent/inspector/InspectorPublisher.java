@@ -1,6 +1,6 @@
 package de.agiledev.agent.inspector;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import de.agiledev.agent.config.DemoProperties;
 import org.springframework.stereotype.Component;
 

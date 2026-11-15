@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8083}
   forward-headers-strategy: framework
   servlet:
     session:
@@ -24,6 +24,7 @@ spring:
               - openid
               - profile
               - email
+              - access-travel
         provider:
           corporate:
             issuer-uri: ${CORPORATE_ISSUER:https://keycloak.agile-dev.de/realms/corporate}

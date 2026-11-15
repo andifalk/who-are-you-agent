@@ -27,3 +27,6 @@ management:
     web:
       exposure:
         include: health,info
+inspector:
+  url: ${INSPECTOR_URL:}
+  api-key: ${INSPECTOR_API_KEY:}

@@ -231,9 +231,12 @@
         log.replaceChildren();
         if (!events.length) log.append(el('p', '', 'No events yet.'));
         for (const e of [...events].reverse()) {
-            const box = el('div', 'event ' + (e.decision === 'ALLOW' ? 'allow' : 'deny'));
+            const decisionClass = e.decision === 'ALLOW' ? 'allow'
+                : ['DENY', 'ERROR'].includes(e.decision) ? 'deny' : '';
+            const box = el('div', 'event ' + decisionClass);
             const top = el('div', 'event-top');
-            top.append(el('span', '', e.tool || 'unknown'), el('span', e.decision === 'ALLOW' ? 'allow' : 'deny', e.decision || '?'));
+            top.append(el('span', '', e.tool || e.phase || 'Event'),
+                el('span', decisionClass, e.decision || 'INFO'));
             box.append(top, el('div', 'muted', (e.timestamp || '') + ' · ' + (e.phase || '') + ' · ' + (e.correlationId || '')), el('div', 'muted', e.reason || ''));
             log.append(box)
         }
@@ -242,7 +245,11 @@
         metrics.replaceChildren();
         for (const [label, val] of [['Human', e.human], ['Agent', e.agent], ['Issuer', e.issuer], ['Audience', e.audience], ['Scopes', e.scopes], ['SPIFFE identity', e.spiffeId], ['Tool', e.tool], ['Decision', e.decision]]) {
             const cell = el('div', 'metric');
-            cell.append(el('div', 'label', label), el('div', 'value ' + (label === 'Decision' ? (val === 'ALLOW' ? 'allow' : 'deny') : ''), val || '—'));
+            const decisionClass = label === 'Decision'
+                ? val === 'ALLOW' ? 'allow' : ['DENY', 'ERROR'].includes(val) ? 'deny' : ''
+                : '';
+            cell.append(el('div', 'label', label), el('div', 'value ' + decisionClass,
+                val || (['Tool', 'Decision'].includes(label) ? 'Not applicable' : '—')));
             metrics.append(cell)
         }
     }

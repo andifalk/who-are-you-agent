@@ -28,3 +28,7 @@ management:
 demo:
   jwt-audience: ${JWT_AUDIENCE:expense-mcp}
 
+
+inspector:
+  url: ${INSPECTOR_URL:}
+  api-key: ${INSPECTOR_API_KEY:}

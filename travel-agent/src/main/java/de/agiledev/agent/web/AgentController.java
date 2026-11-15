@@ -4,9 +4,12 @@ import de.agiledev.agent.TravelBookingAgent;
 import de.agiledev.agent.auth.DelegatedTokenProvider;
 import de.agiledev.agent.auth.DemoMode;
 import de.agiledev.agent.auth.SessionModeStore;
+import de.agiledev.agent.auth.TokenAcquisitionException;
 import de.agiledev.agent.inspector.InspectorPublisher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,6 +26,7 @@ import java.util.UUID;
 
 @Controller
 public class AgentController {
+    private static final Logger log = LoggerFactory.getLogger(AgentController.class);
     private final TravelBookingAgent agent;
     private final DelegatedTokenProvider tokens;
     private final SessionModeStore modes;
@@ -69,13 +73,24 @@ public class AgentController {
             return ResponseEntity.badRequest().body(Map.of("error", "Message must be 1..3000 chars"));
         String id = UUID.randomUUID().toString();
         DemoMode mode = modes.get(request.getSession());
+        String phase = "TRAVEL_TOKEN";
         try {
             String travel = tokens.tokenFor(DelegatedTokenProvider.Resource.TRAVEL, mode, user, request, id);
+            phase = "EXPENSE_TOKEN";
             String expense = tokens.tokenFor(DelegatedTokenProvider.Resource.EXPENSE, mode, user, request, id);
+            phase = "AGENT_RUN";
             return ResponseEntity.ok(agent.run(input.message(), travel, expense, id));
+        } catch (TokenAcquisitionException e) {
+            log.warn("Agent request failed correlationId={} mode={} phase={} error={}",
+                    id, mode, phase, e.getMessage());
+            inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent", e.getMessage(), id);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", e.getMessage(), "correlationId", id));
         } catch (Exception e) {
+            log.error("Agent request failed correlationId={} mode={} phase={} diagnostic={}",
+                    id, mode, phase, SafeFailureDiagnostic.describe(e));
             inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent",
-                    "Agent call failed; inspect server logs without token material", id);
+                    "Agent call failed in " + phase + "; inspect server logs using correlationId", id);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error",
                     "Agent/Keycloak/MCP error. Check server logs and Inspector.", "correlationId", id));
         }

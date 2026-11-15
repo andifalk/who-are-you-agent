@@ -7,8 +7,8 @@ import java.time.Instant;
 public record InspectorEvent(
         @NotBlank String correlationId,
         @NotBlank String phase,
-        @NotBlank String tool,
-        @NotBlank String decision,
+        String tool,
+        String decision,
         String human, String agent, String issuer, String audience,
         String scopes, String spiffeId, String reason,
         Instant timestamp) {

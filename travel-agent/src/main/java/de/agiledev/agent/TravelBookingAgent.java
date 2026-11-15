@@ -26,10 +26,10 @@ public class TravelBookingAgent {
         // Important: construct BOTH clients and BOTH bearer headers for THIS invocation only.
         // They are never Spring singleton fields, never stored in a global ADK agent.
         var travelParams = StreamableHttpServerParameters.builder()
-                .url(cfg.travelMcpUrl()).headers(Map.of("Authorization", "Bearer " + travelToken))
+                .url(cfg.travelMcpUrl()).headers(Map.of("Authorization", "Bearer " + travelToken, "X-Correlation-ID", correlationId))
                 .timeout(Duration.ofSeconds(20)).readTimeout(Duration.ofSeconds(90)).build();
         var expenseParams = StreamableHttpServerParameters.builder()
-                .url(cfg.expenseMcpUrl()).headers(Map.of("Authorization", "Bearer " + expenseToken))
+                .url(cfg.expenseMcpUrl()).headers(Map.of("Authorization", "Bearer " + expenseToken, "X-Correlation-ID", correlationId))
                 .timeout(Duration.ofSeconds(20)).readTimeout(Duration.ofSeconds(90)).build();
         try (var travel = new McpToolset(travelParams); var expense = new McpToolset(expenseParams)) {
             var agent = LlmAgent.builder()

@@ -22,13 +22,13 @@ public class ExpenseTools {
     @McpTool(name = "create_expense", description = "Create a pending expense report for a booked flight. Amount in EUR.")
     public Expense createExpense(@McpToolParam(description = "Booking ID", required = true) String bookingId,
                                  @McpToolParam(description = "Expense amount in EUR", required = true) BigDecimal amount) {
-        String owner = authorization.require("expenses.create");
+        String owner = authorization.require("expenses.create", "create_expense");
         return service.create(bookingId, amount, owner);
     }
 
     @McpTool(name = "get_expense", description = "Get expense details by expense ID.")
     public Expense getExpense(@McpToolParam(description = "Expense ID", required = true) String expenseId) {
-        String subject = authorization.require("expenses.read");
+        String subject = authorization.require("expenses.read", "get_expense");
         Expense e = service.get(expenseId);
         // A real system would resolve subject -> business user and enforce ownership/finance roles.
         return e;
@@ -36,7 +36,7 @@ public class ExpenseTools {
 
     @McpTool(name = "approve_expense", description = "Approve an existing expense report. Requires finance approval permission.")
     public Expense approveExpense(@McpToolParam(description = "Expense ID", required = true) String expenseId) {
-        String approver = authorization.require("expenses.approve");
+        String approver = authorization.require("expenses.approve", "approve_expense");
         return service.approve(expenseId, approver);
     }
 }

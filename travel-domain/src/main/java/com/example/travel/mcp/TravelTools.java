@@ -20,7 +20,7 @@ public class TravelTools {
     }
 
     @McpTool(name = "search_flights", description = "Search deterministic demo flights. Origin STR (Stuttgart), destination BER (Berlin), date ISO YYYY-MM-DD.")
-    @PreAuthorize("@travelAuthorization.canRead(authentication)")
+    @PreAuthorize("@travelAuthorization.canRead(authentication, 'search_flights')")
     public List<Flight> searchFlights(
             @ToolParam(description = "Origin IATA code, e.g. STR") String origin,
             @ToolParam(description = "Destination IATA code, e.g. BER") String destination,
@@ -29,7 +29,7 @@ public class TravelTools {
     }
 
     @McpTool(name = "book_flight", description = "Book a demo flight and return a booking ID. No real reservation is made.")
-    @PreAuthorize("@travelAuthorization.canBook(authentication)")
+    @PreAuthorize("@travelAuthorization.canBook(authentication, 'book_flight')")
     public Booking bookFlight(@ToolParam(description = "Flight ID, e.g. FL-100") String flightId,
                               @ToolParam(description = "Traveler name") String traveler,
                               @ToolParam(description = "Date YYYY-MM-DD") String date) {
@@ -37,7 +37,7 @@ public class TravelTools {
     }
 
     @McpTool(name = "get_booking", description = "Get a booking by booking ID")
-    @PreAuthorize("@travelAuthorization.canRead(authentication)")
+    @PreAuthorize("@travelAuthorization.canRead(authentication, 'get_booking')")
     public Booking getBooking(@ToolParam(description = "Booking ID") String bookingId) {
         return service.getBooking(bookingId);
     }

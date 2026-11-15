@@ -2,6 +2,8 @@ package de.agiledev.agent.inspector;
 
 import tools.jackson.databind.ObjectMapper;
 import de.agiledev.agent.config.DemoProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 @Component
 public class InspectorPublisher {
+    private static final Logger log = LoggerFactory.getLogger(InspectorPublisher.class);
     private final DemoProperties props;
     private final ObjectMapper mapper;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
@@ -31,7 +34,19 @@ public class InspectorPublisher {
                     .timeout(Duration.ofSeconds(3)).header("Content-Type", "application/json")
                     .header("X-Inspector-Key", props.inspectorApiKey() == null ? "" : props.inspectorApiKey())
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-            client.sendAsync(req, HttpResponse.BodyHandlers.discarding()).exceptionally(e -> null);
-        } catch (Exception ignored) { /* telemetry must never break authorization */ }
+            client.sendAsync(req, HttpResponse.BodyHandlers.discarding()).whenComplete((response, failure) -> {
+                if (failure != null) {
+                    log.warn("Inspector event delivery failed correlationId={} phase={} failureType={}",
+                            correlationId, phase, failure.getClass().getName());
+                } else if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    log.warn("Inspector event rejected correlationId={} phase={} httpStatus={}",
+                            correlationId, phase, response.statusCode());
+                }
+            });
+        } catch (Exception failure) {
+            // Telemetry must never break authorization. Do not log credentials or payloads.
+            log.warn("Inspector event preparation failed correlationId={} phase={} failureType={}",
+                    correlationId, phase, failure.getClass().getName());
+        }
     }
 }

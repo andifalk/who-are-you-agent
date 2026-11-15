@@ -128,6 +128,10 @@ und MUSS auf MCP-Seite überprüft werden.
 
 ## Demo-Ablauf
 
+Die ausführliche [Testanleitung für echte ALLOW-/DENY-Ereignisse](../deploy/README.md#echte-allow-deny-entscheidungen-testen)
+beschreibt die Keycloak-Voraussetzungen, konkrete Prompts, erwartete Inspector-
+Ereignisse und das Zurücksetzen der Demo-Daten.
+
 **Demo 1 — Overprivileged Agent:**
 UI auf `OVERPRIVILEGED`; Client Credentials im Travel-Realm.
 Die MCP-Server validieren weiterhin JWT-Signatur/Issuer/Audience/Scopes.

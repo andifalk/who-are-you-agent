@@ -1,5 +1,7 @@
 package de.agiledev.agent.auth;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import de.agiledev.agent.config.DemoProperties;
@@ -25,6 +27,7 @@ import java.util.StringJoiner;
 
 @Component
 public class DelegatedTokenProvider {
+    private static final Logger log = LoggerFactory.getLogger(DelegatedTokenProvider.class);
     private final OAuth2AuthorizedClientManager manager;
     private final DemoProperties cfg;
     private final InspectorPublisher inspector;
@@ -44,28 +47,40 @@ public class DelegatedTokenProvider {
     public String tokenFor(Resource resource, DemoMode mode, Authentication user, HttpServletRequest request, String correlationId) {
         if (mode == DemoMode.OVERPRIVILEGED) return serviceToken(resource, request.getSession(), correlationId);
         if (mode == DemoMode.GOOGLE_AGENT_IDENTITY)
-            throw new IllegalStateException("Google Agent Identity erfordert eine verifizierte Google-Agent-Credential-Integration; nicht implementiert: fail closed");
+            throw new TokenAcquisitionException("AGENT_IDENTITY", "nicht implementiert", "Overprivileged oder Delegated auswählen");
         return delegated(resource, user, request, correlationId);
     }
 
     private String delegated(Resource resource, Authentication user, HttpServletRequest request, String id) {
-        var authorized = manager.authorize(OAuth2AuthorizeRequest.withClientRegistrationId("corporate")
+        org.springframework.security.oauth2.client.OAuth2AuthorizedClient authorized;
+        try {
+            authorized = manager.authorize(OAuth2AuthorizeRequest.withClientRegistrationId("corporate")
                 .principal(user).attribute(HttpServletRequest.class.getName(), request).build());
-        if (authorized == null) throw new IllegalStateException("Alice muss sich erneut anmelden");
+        } catch (org.springframework.security.oauth2.core.OAuth2AuthorizationException e) {
+            throw oauthFailure("CORPORATE_LOGIN", 0, e.getError().getErrorCode());
+        } catch (RuntimeException e) {
+            throw new TokenAcquisitionException("CORPORATE_LOGIN", "Corporate-Token nicht verfügbar",
+                    "OIDC-Konfiguration und Erreichbarkeit prüfen; erneut anmelden");
+        }
+        if (authorized == null || authorized.getAccessToken() == null)
+            throw new TokenAcquisitionException("CORPORATE_LOGIN", "kein Access-Token", "Erneut anmelden");
         String token1 = authorized.getAccessToken().getTokenValue();
         String fingerprint = Integer.toHexString(token1.hashCode()); // cache key only; never logged
+        log.info("Corporate token issued with scopes [{}]", authorized.getAccessToken().getScopes());
         inspector.publish("TOKEN1_ISSUED", "", "", user.getName(), "travel-agent", "Corporate token available (possibly refreshed)", id);
         String key = "token3." + resource;
         HttpSession session = request.getSession();
         Cached cache = (Cached) session.getAttribute(key);
         if (cache != null && cache.valid(fingerprint)) return cache.token();
         var target = resource == Resource.TRAVEL ? cfg.travel() : cfg.expense();
-        JsonNode exchanged = post(cfg.corporateIssuer() + "/protocol/openid-connect/token",
+        log.info("Exchange Corporate token for target {} and exchange scope {}", target, cfg.exchangeScope());
+        JsonNode exchanged = post("TOKEN_EXCHANGE", cfg.corporateIssuer() + "/protocol/openid-connect/token",
                 Map.of("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
                         "client_id", cfg.corporateClientId(), "client_secret", cfg.corporateClientSecret(),
                         "subject_token", token1, "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
                         "scope", cfg.exchangeScope(), "audience", cfg.exchangeAudience()));
-        String assertion = required(exchanged, "access_token");
+        String assertion = required(exchanged, "access_token", "TOKEN_EXCHANGE");
+        log.info("JWT assertion for travel realm issued with scopes [{}]", exchanged.get("scope"));
         inspector.publish("TOKEN_EXCHANGED", "", "", user.getName(), "travel-agent", "JWT assertion for travel realm", id);
         Map<String, String> grant = new LinkedHashMap<>();
         grant.put("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
@@ -73,9 +88,10 @@ public class DelegatedTokenProvider {
         grant.put("client_id", cfg.travelGrantClientId());
         grant.put("client_secret", cfg.travelGrantClientSecret());
         grant.put("scope", target.scopes());
+        log.info("Redeem access token from JWT assertion for travel realm");
         // Audience is enforced via Keycloak client scope mapper; verify aud in MCP resource server.
-        JsonNode redeemed = post(cfg.travelIssuer() + "/protocol/openid-connect/token", grant);
-        String token3 = required(redeemed, "access_token");
+        JsonNode redeemed = post("JWT_BEARER_GRANT", cfg.travelIssuer() + "/protocol/openid-connect/token", grant);
+        String token3 = required(redeemed, "access_token", "JWT_BEARER_GRANT");
         long expires = redeemed.path("expires_in").asLong(60);
         session.setAttribute(key, new Cached(token3, Instant.now().plusSeconds(expires), fingerprint));
         inspector.publish("JWT_GRANT_REDEEMED", "", "", user.getName(), "travel-agent",
@@ -88,23 +104,26 @@ public class DelegatedTokenProvider {
         Cached cache = (Cached) session.getAttribute(key);
         if (cache != null && cache.valid("service")) return cache.token();
         // Demo 1 intentionally uses an overprivileged service identity, but JWT validation stays active.
-        JsonNode response = post(cfg.travelIssuer() + "/protocol/openid-connect/token",
+        JsonNode response = post("CLIENT_CREDENTIALS", cfg.travelIssuer() + "/protocol/openid-connect/token",
                 Map.of("grant_type", "client_credentials", "client_id", cfg.insecureClientId(),
                         "client_secret", cfg.insecureClientSecret()));
-        String token = required(response, "access_token");
+        String token = required(response, "access_token", "CLIENT_CREDENTIALS");
         session.setAttribute(key, new Cached(token, Instant.now().plusSeconds(response.path("expires_in").asLong(60)), "service"));
         inspector.publish("TOKEN1_ISSUED", "", "", "service-account", "travel-agent",
                 "Overprivileged service credential (Demo 1)", id);
         return token;
     }
 
-    private String required(JsonNode node, String field) {
-        String value = node.path(field).asString();
-        if (value == null || value.isBlank()) throw new IllegalStateException("Token endpoint missing " + field);
+    static String required(JsonNode node, String field, String step) {
+        var valueNode = node == null ? null : node.get(field);
+        String value = valueNode != null && valueNode.isString() ? valueNode.asString() : null;
+        if (value == null || value.isBlank())
+            throw new TokenAcquisitionException(step, "ungültige Token-Antwort",
+                    "Erwartetes Access-Token fehlt; Keycloak-Konfiguration prüfen");
         return value;
     }
 
-    private JsonNode post(String url, Map<String, String> form) {
+    private JsonNode post(String step, String url, Map<String, String> form) {
         try {
             StringJoiner body = new StringJoiner("&");
             form.forEach((k, v) -> body.add(encode(k) + "=" + encode(v)));
@@ -112,15 +131,59 @@ public class DelegatedTokenProvider {
                     .timeout(Duration.ofSeconds(15)).header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200)
-                throw new IllegalStateException("Keycloak token endpoint HTTP " + response.statusCode() + " (details redacted)");
-            return json.readTree(response.body());
+            return parseResponse(step, response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted token request", e);
-        } catch (java.io.IOException | tools.jackson.core.JacksonException e) {
-            throw new IllegalStateException("Token endpoint unavailable", e);
+            throw new TokenAcquisitionException(step, "Anfrage unterbrochen", "Anfrage erneut ausführen");
+        } catch (java.net.http.HttpTimeoutException e) {
+            throw new TokenAcquisitionException(step, "Zeitüberschreitung", "Keycloak-Erreichbarkeit prüfen");
+        } catch (java.io.IOException e) {
+            throw new TokenAcquisitionException(step, "Verbindung fehlgeschlagen",
+                    "Keycloak-DNS, TLS-Zertifikate und Netzwerkverbindung prüfen");
+        } catch (IllegalArgumentException e) {
+            throw new TokenAcquisitionException(step, "ungültige Endpoint-Konfiguration",
+                    "CORPORATE_ISSUER und TRAVEL_ISSUER prüfen");
         }
+    }
+
+    JsonNode parseResponse(String step, int status, String body) {
+        JsonNode node;
+        try {
+            node = json.readTree(body);
+        } catch (tools.jackson.core.JacksonException e) {
+            if (status != 200) throw oauthFailure(step, status, "unknown");
+            throw new TokenAcquisitionException(step, "ungültige JSON-Antwort",
+                    "Token-Endpoint und vorgeschalteten Proxy prüfen");
+        }
+        if (status != 200) {
+            var error = node == null ? null : node.get("error");
+            throw oauthFailure(step, status, error != null && error.isString() ? error.asString() : "unknown");
+        }
+        required(node, "access_token", step);
+        return node;
+    }
+
+    static TokenAcquisitionException oauthFailure(String step, int status, String error) {
+        // Only known OAuth codes are included. Descriptions can echo submitted credentials.
+        String code = switch (error == null ? "" : error) {
+            case "invalid_client", "unauthorized_client", "invalid_grant", "invalid_scope",
+                 "invalid_target", "access_denied", "unsupported_grant_type", "invalid_request" -> error;
+            default -> "unknown_error";
+        };
+        String hint = switch (code) {
+            case "invalid_client" -> "Client-ID, Client-Secret und Realm prüfen";
+            case "unauthorized_client", "unsupported_grant_type" -> "Berechtigung für den Grant-Typ prüfen; bei CLIENT_CREDENTIALS Service Accounts aktivieren";
+            case "invalid_grant" -> "Token/Assertion abgelaufen oder abgelehnt; erneut anmelden und Issuer-/Trust-Konfiguration prüfen";
+            case "invalid_scope" -> "Angeforderte Scopes und Client-Scope-Zuordnung prüfen";
+            case "invalid_target" -> "Exchange-Audience und erlaubte Ziel-Clients prüfen";
+            case "access_denied" -> "Keycloak-Policies und Token-Exchange-Berechtigungen prüfen";
+            case "invalid_request" -> "Grant-Parameter und Keycloak-Grant-Konfiguration prüfen";
+            default -> status == 404 ? "Realm und Token-Endpoint-Pfad prüfen"
+                    : status >= 500 ? "Keycloak oder vorgeschalteter Proxy nicht verfügbar; Serverlogs prüfen"
+                    : "Keycloak-Konfiguration und Serverlogs prüfen";
+        };
+        return new TokenAcquisitionException(step,
+                (status > 0 ? "HTTP " + status + " " : "") + code, hint);
     }
 
     public enum Resource {TRAVEL, EXPENSE}

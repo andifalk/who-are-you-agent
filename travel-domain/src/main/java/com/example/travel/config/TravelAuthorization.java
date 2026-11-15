@@ -8,19 +8,25 @@ import java.util.Objects;
 @Component("travelAuthorization")
 public class TravelAuthorization {
 
-    public TravelAuthorization() {
+    private final com.example.travel.inspector.ToolDecisionPublisher inspector;
+
+    public TravelAuthorization(com.example.travel.inspector.ToolDecisionPublisher inspector) {
+        this.inspector = inspector;
     }
 
-    public boolean canRead(Authentication auth) {
-        return allowed(auth, "SCOPE_travel.read");
+    public boolean canRead(Authentication auth, String tool) {
+        return allowed(auth, "SCOPE_travel.read", tool);
     }
 
-    public boolean canBook(Authentication auth) {
-        return allowed(auth, "SCOPE_travel.book");
+    public boolean canBook(Authentication auth, String tool) {
+        return allowed(auth, "SCOPE_travel.book", tool);
     }
 
-    private boolean allowed(Authentication auth, String scope) {
-        if (auth == null || !auth.isAuthenticated()) return false;
-        return auth.getAuthorities().stream().anyMatch(a -> Objects.equals(a.getAuthority(), scope));
+    private boolean allowed(Authentication auth, String scope, String tool) {
+        boolean allowed = auth != null && auth.isAuthenticated()
+                && auth.getAuthorities().stream().anyMatch(a -> Objects.equals(a.getAuthority(), scope));
+        inspector.publish(auth, tool, allowed, allowed ? "Required scope present: " + scope.substring(6)
+                : "Missing authentication or required scope: " + scope.substring(6));
+        return allowed;
     }
 }

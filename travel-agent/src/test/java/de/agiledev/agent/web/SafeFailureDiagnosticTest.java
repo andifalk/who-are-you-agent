@@ -7,6 +7,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SafeFailureDiagnosticTest {
     @Test
+    void nestedMcpFailureRemainsCompactAndIdentifiesServer() {
+        var mcp = new de.agiledev.agent.diagnostics.McpToolLoadingFailure("expense-mcp",
+                "https://expense.example/mcp", new IllegalStateException("HTTP 401 Unauthorized"));
+        var diagnostic = SafeFailureDiagnostic.describe(new java.util.concurrent.ExecutionException(mcp));
+        assertTrue(diagnostic.contains("server=expense-mcp"));
+        assertTrue(diagnostic.contains("HTTP 401 Unauthorized"));
+        assertFalse(diagnostic.contains("\n  at"));
+    }
+    @Test
     void reportsNestedProviderStatusWithoutLoggingCredentialsOrMessages() {
         var provider = new ApiException(403, "PERMISSION_DENIED", "secret-api-key");
         var failure = new IllegalStateException("Bearer secret-access-token", provider);

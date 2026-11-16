@@ -58,3 +58,9 @@ demo:
   agent-identity:
     enabled: ${GOOGLE_AGENT_IDENTITY_ENABLED:false}
     verified-proxy-header: ${GOOGLE_AGENT_IDENTITY_VERIFIED_HEADER:}
+
+# ADK's tool loader logs raw transport exceptions during retries. Our wrapper
+# emits sanitized diagnostics with server identity after the SDK retries finish.
+logging:
+  level:
+    com.google.adk.tools.mcp.McpToolset: "OFF"

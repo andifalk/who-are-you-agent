@@ -1,18 +1,14 @@
 package de.agiledev.agent.web;
 
 import com.google.genai.errors.ApiException;
+import de.agiledev.agent.diagnostics.McpToolLoadingFailure;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.regex.Pattern;
+import static de.agiledev.agent.diagnostics.SecretRedactor.sanitize;
 
 /** Includes sanitized Gemini messages; other exception messages remain excluded. */
 final class SafeFailureDiagnostic {
-    private static final Pattern CREDENTIAL = Pattern.compile(
-            "(?i)([\\\"']?(?:x-goog-api-key|google_api_key|gemini_api_key|api[_-]?key|key|access_token|refresh_token|id_token|client_secret|authorization)[\\\"']?\\s*[:=]\\s*[\\\"']?)([^\\s\\\"'&,}]+)");
-    private static final Pattern BEARER = Pattern.compile("(?i)Bearer\\s+[^\\s\\\"'&,}]+");
-    private static final Pattern GOOGLE_KEY = Pattern.compile("AIza[A-Za-z0-9_-]+");
-
     private SafeFailureDiagnostic() { }
 
     static String describe(Throwable failure) {
@@ -20,6 +16,8 @@ final class SafeFailureDiagnostic {
     }
 
     static String describe(Throwable failure, String... secrets) {
+        var mcp = McpToolLoadingFailure.find(failure);
+        if (mcp != null) return sanitize(mcp.getMessage(), secrets);
         var result = new StringBuilder();
         var seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>());
         for (Throwable cause = failure; cause != null && seen.size() < 12 && seen.add(cause);
@@ -37,18 +35,4 @@ final class SafeFailureDiagnostic {
         return result.toString();
     }
 
-    private static String sanitize(String message, String... secrets) {
-        if (message == null) return "<none>";
-        for (String secret : secrets) {
-            if (secret != null && !secret.isBlank()) {
-                message = message.replace(secret, "[REDACTED]");
-                message = message.replace(java.net.URLEncoder.encode(secret, java.nio.charset.StandardCharsets.UTF_8), "[REDACTED]");
-            }
-        }
-        message = BEARER.matcher(message).replaceAll("Bearer [REDACTED]");
-        message = CREDENTIAL.matcher(message).replaceAll("$1[REDACTED]");
-        message = GOOGLE_KEY.matcher(message).replaceAll("[REDACTED]");
-        message = message.replaceAll("[\\p{Cc}\\p{Zl}\\p{Zp}]", " ");
-        return message.length() > 4096 ? message.substring(0, 4096) + " [truncated]" : message;
-    }
 }

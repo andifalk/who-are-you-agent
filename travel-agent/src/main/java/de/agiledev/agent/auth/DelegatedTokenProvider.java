@@ -71,7 +71,10 @@ public class DelegatedTokenProvider {
         String key = "token3." + resource;
         HttpSession session = request.getSession();
         Cached cache = (Cached) session.getAttribute(key);
-        if (cache != null && cache.valid(fingerprint)) return cache.token();
+        if (cache != null && cache.valid(fingerprint)) {
+            reportTokenClaims(DemoMode.DELEGATED, resource, cache.token(), id, true, user.getName());
+            return cache.token();
+        }
         var target = resource == Resource.TRAVEL ? cfg.travel() : cfg.expense();
         log.info("Exchange Corporate token for target {} and exchange scope {}", target, cfg.exchangeScope());
         JsonNode exchanged = post("TOKEN_EXCHANGE", cfg.corporateIssuer() + "/protocol/openid-connect/token",
@@ -92,6 +95,7 @@ public class DelegatedTokenProvider {
         // Audience is enforced via Keycloak client scope mapper; verify aud in MCP resource server.
         JsonNode redeemed = post("JWT_BEARER_GRANT", cfg.travelIssuer() + "/protocol/openid-connect/token", grant);
         String token3 = required(redeemed, "access_token", "JWT_BEARER_GRANT");
+        reportTokenClaims(DemoMode.DELEGATED, resource, token3, id, false, user.getName());
         long expires = redeemed.path("expires_in").asLong(60);
         session.setAttribute(key, new Cached(token3, Instant.now().plusSeconds(expires), fingerprint));
         inspector.publish("JWT_GRANT_REDEEMED", "", "", user.getName(), "travel-agent",
@@ -99,15 +103,30 @@ public class DelegatedTokenProvider {
         return token3;
     }
 
+    private void reportTokenClaims(DemoMode mode, Resource resource, String token, String id, boolean cached, String human) {
+        // Diagnostic decoding only: signature/issuer/audience validation remains with the MCP servers.
+        var claims = TokenClaimDiagnostic.read(json, token, cfg.corporateClientSecret(),
+                cfg.travelGrantClientSecret(), cfg.insecureClientSecret(), cfg.inspectorApiKey(),
+                System.getenv("GOOGLE_API_KEY"), System.getenv("GEMINI_API_KEY"));
+        log.info("{} token claims correlationId={} resource={} source={} signatureVerified=false {}",
+                mode == DemoMode.DELEGATED ? "Delegated" : "Overprivileged", id, resource, cached ? "cache" : "issued", claims.summary());
+        inspector.publishTokenClaims(mode, resource.name(), human, cached ? "cache" : "issued",
+                claims.available(), claims.issuer(), claims.audience(), claims.scopes(), id);
+    }
+
     private String serviceToken(Resource resource, HttpSession session, String id) {
         String key = "service.token." + resource;
         Cached cache = (Cached) session.getAttribute(key);
-        if (cache != null && cache.valid("service")) return cache.token();
+        if (cache != null && cache.valid("service")) {
+            reportTokenClaims(DemoMode.OVERPRIVILEGED, resource, cache.token(), id, true, "service-account");
+            return cache.token();
+        }
         // Demo 1 intentionally uses an overprivileged service identity, but JWT validation stays active.
         JsonNode response = post("CLIENT_CREDENTIALS", cfg.travelIssuer() + "/protocol/openid-connect/token",
                 Map.of("grant_type", "client_credentials", "client_id", cfg.insecureClientId(),
                         "client_secret", cfg.insecureClientSecret()));
         String token = required(response, "access_token", "CLIENT_CREDENTIALS");
+        reportTokenClaims(DemoMode.OVERPRIVILEGED, resource, token, id, false, "service-account");
         session.setAttribute(key, new Cached(token, Instant.now().plusSeconds(response.path("expires_in").asLong(60)), "service"));
         inspector.publish("TOKEN1_ISSUED", "", "", "service-account", "travel-agent",
                 "Overprivileged service credential (Demo 1)", id);

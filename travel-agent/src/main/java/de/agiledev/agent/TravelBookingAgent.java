@@ -4,7 +4,7 @@ import com.google.adk.agents.LlmAgent;
 import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
 import com.google.adk.runner.InMemoryRunner;
-import com.google.adk.tools.mcp.McpToolset;
+import de.agiledev.agent.diagnostics.DiagnosticMcpToolset;
 import com.google.adk.tools.mcp.StreamableHttpServerParameters;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
@@ -31,7 +31,11 @@ public class TravelBookingAgent {
         var expenseParams = StreamableHttpServerParameters.builder()
                 .url(cfg.expenseMcpUrl()).headers(Map.of("Authorization", "Bearer " + expenseToken, "X-Correlation-ID", correlationId))
                 .timeout(Duration.ofSeconds(20)).readTimeout(Duration.ofSeconds(90)).build();
-        try (var travel = new McpToolset(travelParams); var expense = new McpToolset(expenseParams)) {
+        String[] secrets = {travelToken, expenseToken, cfg.corporateClientSecret(),
+                cfg.travelGrantClientSecret(), cfg.insecureClientSecret(), cfg.inspectorApiKey(),
+                System.getenv("GOOGLE_API_KEY"), System.getenv("GEMINI_API_KEY")};
+        try (var travel = new DiagnosticMcpToolset(travelParams, "travel-mcp", cfg.travelMcpUrl(), secrets);
+             var expense = new DiagnosticMcpToolset(expenseParams, "expense-mcp", cfg.expenseMcpUrl(), secrets)) {
             var agent = LlmAgent.builder()
                     .name("travel_booking_agent")
                     .description("Corporate travel and expenses assistant")

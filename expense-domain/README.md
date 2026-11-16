@@ -1,74 +1,99 @@
 # Expense Domain — Spring AI MCP Server
 
-Java **25**, Maven, **Spring Boot 4.1.0**, **Spring AI 2.0.2**, Spring Security OAuth2 Resource Server, Streamable HTTP MCP.
+Java 25 / Maven / Spring Boot **4.1.2** / Spring AI **2.0.1** /
+Streamable HTTP / Spring Security OAuth2 JWT Resource Server.
 
-## Tools
+## MCP Tools and Demo Data
 
-| Tool | Scope in delegated mode | Description |
+| Tool | Required scope | Description |
 |---|---|---|
-| `create_expense(bookingId, amount)` | `expenses.create` | Creates a pending EUR expense owned by JWT subject |
+| `create_expense(bookingId, amount)` | `expenses.create` | Creates a pending EUR expense owned by the JWT subject |
 | `get_expense(expenseId)` | `expenses.read` | Reads expense details |
-| `approve_expense(expenseId)` | `expenses.approve` | Approves pending expense |
+| `approve_expense(expenseId)` | `expenses.approve` | Approves a pending expense |
 
-Seeded expense: `EXP-8000`, amount EUR 8,000, status PENDING. In insecure mode, **any valid JWT with the right issuer and audience** can approve it; in delegated mode the additional `expenses.approve` scope is required. The `insecure` setting is for a controlled, isolated demonstration only.
+`EXP-8000` is preloaded with EUR 8,000 and status `PENDING`. Newly created IDs
+start at `EXP-101`. All data is in memory and resets on restart. Approving an
+already approved record fails at the business-operation level, even if the
+scope check returned `ALLOW`. No real payments or approvals take place.
 
-## Build
+## Run and Deploy
 
-Requires JDK 25 and Maven 3.9+:
+From the repository root, with JDK 25 and Maven:
 
-```sh
-mvn clean test
-mvn spring-boot:run
+```bash
+KEYCLOAK_ISSUER=https://keycloak.agile-dev.de/realms/travel \
+JWT_AUDIENCE=expense-mcp \
+mvn -f expense-domain/pom.xml spring-boot:run
 ```
 
-Set the issuer URL to the Keycloak realm actually issuing the token, e.g.:
+The default application port is **8082** (`PORT` overrides it):
+`http://localhost:8082/mcp` and `http://localhost:8082/actuator/health`.
 
-```sh
-export KEYCLOAK_ISSUER=https://keycloak.agile-dev.de/realms/travel
-export JWT_AUDIENCE=expense-mcp
-export DEMO_SECURITY_MODE=delegated
-mvn spring-boot:run
+For Docker, configure `deploy/.env` and use the four-service deployment:
+
+```bash
+cd deploy
+docker compose -f docker-compose.yaml up -d
 ```
 
-For Docker:
+It maps `127.0.0.1:18082` to container port `8082`; the public example is
+`https://expense.agile-dev.de/mcp`. Both deployment Compose files currently
+use published images. The older module-local `compose.yaml` maps to container
+port `8080` without setting `PORT`, which does not match the current default.
+See the [deployment guide](../deploy/README.md).
 
-```sh
-cp .env.example .env
-# Adjust KEYCLOAK_ISSUER in .env
-# Note: Keycloak must be reachable from the container and issuer claim must match.
-docker compose up --build
-```
+## Authorization and Keycloak
 
-Local Docker endpoint: `http://localhost:8082/mcp`; standalone Maven endpoint: `http://localhost:8080/mcp`. Cloud target: `https://expense.agile-dev.de/mcp` behind TLS reverse proxy.
+`ExpenseAuthorization` requires an authenticated `JwtAuthenticationToken`
+and the tool-specific `SCOPE_<scope>` authority. There is **no insecure scope
+bypass**: `DEMO_SECURITY_MODE` in legacy Compose examples is not read by the
+current code. Both agent modes use the same server-side checks.
 
-## Keycloak token requirements
+| Mode | Required Expense token |
+|---|---|
+| Delegated | Travel-realm issuer; audience contains `expense-mcp`; `expenses.create expenses.read`; no `expenses.approve` |
+| Overprivileged | Same Travel-realm issuer; audiences contain both MCP targets; all demo scopes including `expenses.approve` |
 
-- `iss` equals `KEYCLOAK_ISSUER` (for Demo 2: realm `travel`).
-- `aud` includes `expense-mcp` (configure an audience mapper in Keycloak).
-- `scope` includes `expenses.create`, `expenses.read` and optionally `expenses.approve`.
-- Demo 1: use a valid overprivileged service-account token **issued by the same configured realm**, or change issuer configuration consistently. This project does **not** silently trust a second issuer.
-- `DEMO_SECURITY_MODE=insecure` disables tool-level scope checks, **not** JWT signature/issuer/audience validation.
+The issuer must match `KEYCLOAK_ISSUER`, and the audience must include
+`JWT_AUDIENCE` (default `expense-mcp`). Signature and expiration are also
+validated. The server does not silently trust a second issuer.
+Switching the agent mode does not change this server configuration.
 
-## Security and demo caveats
+Configure audience mappers and scope assignments using the
+[Keycloak guide](../deploy/README.md#working-audience-mappers-for-travel-and-expense-mcp)
+or the [setup script](../deploy/README.md#automatically-configure-audience-mappers-and-scope-assignments).
+The model's refusal or approval text is not the authorization boundary.
 
-This is an educational sample, not production-grade expense software. The in-memory data resets on restart; `EXP-8000` is always preloaded. The implementation does not enforce expense ownership or approval segregation of duties, and no Google Agent Identity / SPIFFE validation is included yet. Add those controls before production use.
+## Inspector Integration
 
-**MCP execution context warning:** tool authorization currently reads Spring Security's `SecurityContextHolder`. Depending on MCP transport and execution threading, authentication may not be propagated to tool invocations. Before a live demo, write an end-to-end MCP `tools/call` integration test with a real JWT and verify that authorized calls succeed and unauthorized calls fail. If context propagation fails, use a per-request transport-context extractor and explicitly verify the bearer token in the tool authorization service. Never fall back to trusting a user-supplied identity field.
+`INSPECTOR_URL` and `INSPECTOR_API_KEY` enable real `TOOL_AUTHORIZATION`
+events. Deployment Compose sets `http://inspector:8090` and a shared key.
+The authorization service publishes `ALLOW`/`DENY` before invoking the business
+service. Events contain tool name, reason, correlation ID, and JWT identity
+metadata, but no tokens, secrets, or tool arguments. Failed delivery is logged
+without changing the access decision; an empty URL disables publishing.
 
-## Smoke checks
+## Tests and Operational Limits
 
-```sh
+The current tests cover approval ALLOW/DENY, preventing business execution
+on denial, and Inspector HTTP delivery. The application-context test depends
+on issuer discovery. Full MCP/Keycloak behavior must also be checked using
+the [demo test guide](../deploy/README.md#test-real-allowdeny-decisions).
+
+```bash
+mvn -f expense-domain/pom.xml test
 curl -i http://localhost:8082/actuator/health
 curl -i -X POST http://localhost:8082/mcp -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-# The unauthenticated MCP request must be rejected (401).
+# An unauthenticated MCP request must be rejected (401).
 ```
 
-## Versions and references
+Authorization reads Spring Security's `SecurityContextHolder`; the deployed
+MCP transport must propagate authentication to tool invocation threads.
+There is no expense ownership enforcement, approval segregation of duties,
+Google Agent Identity/SPIFFE verification, or durable persistence.
+This is a demo, not production expense software.
 
-- https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html
-- https://spring.io/blog/2026/06/10/spring-boot-4/
-- https://spring.io/blog/2026/06/12/spring-ai-2-0-0-GA-available-now/
+## References
 
-## Build verification
-
-This project was generated without a local JDK 25 or Maven installation, so its Maven build and MCP integration have **not** been verified in the generation environment. Run `mvn clean verify` using JDK 25 before deployment.
+- [Spring AI MCP](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html)
+- [Project architecture](../README.md#architecture)

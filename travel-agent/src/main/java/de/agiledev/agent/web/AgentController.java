@@ -5,6 +5,7 @@ import de.agiledev.agent.auth.DelegatedTokenProvider;
 import de.agiledev.agent.auth.DemoMode;
 import de.agiledev.agent.auth.SessionModeStore;
 import de.agiledev.agent.auth.TokenAcquisitionException;
+import de.agiledev.agent.diagnostics.McpToolLoadingFailure;
 import de.agiledev.agent.inspector.InspectorPublisher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -87,6 +88,14 @@ public class AgentController {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                     "error", e.getMessage(), "correlationId", id));
         } catch (Exception e) {
+            var mcp = McpToolLoadingFailure.find(e);
+            if (mcp != null) {
+                log.warn("Agent request failed correlationId={} mode={} phase={} error={}",
+                        id, mode, phase, mcp.getMessage());
+                inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent", mcp.getMessage(), id);
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                        "error", "MCP tools could not be loaded. Check Inspector/server logs.", "correlationId", id));
+            }
             log.error("Agent request failed correlationId={} mode={} phase={} diagnostic={}",
                     id, mode, phase, SafeFailureDiagnostic.describe(e));
             inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent",

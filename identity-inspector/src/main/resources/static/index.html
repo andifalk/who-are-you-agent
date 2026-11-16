@@ -238,6 +238,11 @@
             top.append(el('span', '', e.tool || e.phase || 'Event'),
                 el('span', decisionClass, e.decision || 'INFO'));
             box.append(top, el('div', 'muted', (e.timestamp || '') + ' · ' + (e.phase || '') + ' · ' + (e.correlationId || '')), el('div', 'muted', e.reason || ''));
+            if (['DELEGATED_TOKEN_CLAIMS_', 'OVERPRIVILEGED_TOKEN_CLAIMS_'].some(prefix => (e.phase || '').startsWith(prefix))) {
+                for (const [label, value] of [['Issuer (iss)', e.issuer], ['Audiences (aud)', e.audience], ['Scopes (scope)', e.scopes]]) {
+                    box.append(el('div', 'muted', label + ': ' + (value || 'Unavailable')));
+                }
+            }
             log.append(box)
         }
         const e = events.at(-1);

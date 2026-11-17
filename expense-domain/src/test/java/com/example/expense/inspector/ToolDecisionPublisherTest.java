@@ -31,7 +31,7 @@ class ToolDecisionPublisherTest {
             request.addHeader("X-Correlation-ID", "request-123");
             RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
             var jwt = Jwt.withTokenValue("secret-bearer-token").header("alg", "RS256")
-                    .subject("alice").issuer("https://issuer.example").audience(List.of("expense-mcp"))
+                    .subject("user-uuid").claim("given_name", "Alice").claim("family_name", "Example").issuer("https://issuer.example").audience(List.of("expense-mcp"))
                     .claim("azp", "agent-client").build();
             var auth = new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_expense.read")));
             var mapper = new ObjectMapper();
@@ -44,7 +44,9 @@ class ToolDecisionPublisherTest {
             assertEquals("DENY", event.path("decision").asString());
             assertEquals("test_tool", event.path("tool").asString());
             assertEquals("request-123", event.path("correlationId").asString());
-            assertEquals("alice", event.path("human").asString());
+            assertEquals("Alice Example", event.path("human").asString());
+            assertEquals("user-uuid", auth.getName());
+            assertEquals("user-uuid", auth.getToken().getSubject());
             assertEquals("agent-client", event.path("agent").asString());
             assertEquals("expense.read", event.path("scopes").asString());
             assertEquals("inspector-secret", headers.poll(5, TimeUnit.SECONDS));

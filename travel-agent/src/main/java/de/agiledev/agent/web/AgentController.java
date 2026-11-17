@@ -49,7 +49,7 @@ public class AgentController {
     @GetMapping("/api/session")
     @ResponseBody
     public Map<String, String> session(HttpSession session, Authentication user) {
-        return Map.of("user", user.getName(), "mode", modes.get(session).name());
+        return Map.of("user", UserDisplayName.of(user), "mode", modes.get(session).name());
     }
 
     @PostMapping("/api/mode")
@@ -84,7 +84,7 @@ public class AgentController {
         } catch (TokenAcquisitionException e) {
             log.warn("Agent request failed correlationId={} mode={} phase={} error={}",
                     id, mode, phase, e.getMessage());
-            inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent", e.getMessage(), id);
+            inspector.publish("AGENT_ERROR", "", "ERROR", UserDisplayName.of(user), "travel-agent", e.getMessage(), id);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                     "error", e.getMessage(), "correlationId", id));
         } catch (Exception e) {
@@ -92,13 +92,13 @@ public class AgentController {
             if (mcp != null) {
                 log.warn("Agent request failed correlationId={} mode={} phase={} error={}",
                         id, mode, phase, mcp.getMessage());
-                inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent", mcp.getMessage(), id);
+                inspector.publish("AGENT_ERROR", "", "ERROR", UserDisplayName.of(user), "travel-agent", mcp.getMessage(), id);
                 return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                         "error", "MCP tools could not be loaded. Check Inspector/server logs.", "correlationId", id));
             }
             log.error("Agent request failed correlationId={} mode={} phase={} diagnostic={}",
                     id, mode, phase, SafeFailureDiagnostic.describe(e));
-            inspector.publish("AGENT_ERROR", "", "ERROR", user.getName(), "travel-agent",
+            inspector.publish("AGENT_ERROR", "", "ERROR", UserDisplayName.of(user), "travel-agent",
                     "Agent call failed in " + phase + "; inspect server logs using correlationId", id);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error",
                     "Agent/Keycloak/MCP error. Check server logs and Inspector.", "correlationId", id));

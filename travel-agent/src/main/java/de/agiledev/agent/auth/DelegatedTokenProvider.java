@@ -1,5 +1,6 @@
 package de.agiledev.agent.auth;
 
+import de.agiledev.agent.web.UserDisplayName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -67,12 +68,12 @@ public class DelegatedTokenProvider {
         String token1 = authorized.getAccessToken().getTokenValue();
         String fingerprint = Integer.toHexString(token1.hashCode()); // cache key only; never logged
         log.info("Corporate token issued with scopes [{}]", authorized.getAccessToken().getScopes());
-        inspector.publish("TOKEN1_ISSUED", "", "", user.getName(), "travel-agent", "Corporate token available (possibly refreshed)", id);
+        inspector.publish("TOKEN1_ISSUED", "", "", UserDisplayName.of(user), "travel-agent", "Corporate token available (possibly refreshed)", id);
         String key = "token3." + resource;
         HttpSession session = request.getSession();
         Cached cache = (Cached) session.getAttribute(key);
         if (cache != null && cache.valid(fingerprint)) {
-            reportTokenClaims(DemoMode.DELEGATED, resource, cache.token(), id, true, user.getName());
+            reportTokenClaims(DemoMode.DELEGATED, resource, cache.token(), id, true, UserDisplayName.of(user));
             return cache.token();
         }
         var target = resource == Resource.TRAVEL ? cfg.travel() : cfg.expense();
@@ -84,7 +85,7 @@ public class DelegatedTokenProvider {
                         "scope", cfg.exchangeScope(), "audience", cfg.exchangeAudience()));
         String assertion = required(exchanged, "access_token", "TOKEN_EXCHANGE");
         log.info("JWT assertion for travel realm issued with scopes [{}]", exchanged.get("scope"));
-        inspector.publish("TOKEN_EXCHANGED", "", "", user.getName(), "travel-agent", "JWT assertion for travel realm", id);
+        inspector.publish("TOKEN_EXCHANGED", "", "", UserDisplayName.of(user), "travel-agent", "JWT assertion for travel realm", id);
         Map<String, String> grant = new LinkedHashMap<>();
         grant.put("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
         grant.put("assertion", assertion);
@@ -95,10 +96,10 @@ public class DelegatedTokenProvider {
         // Audience is enforced via Keycloak client scope mapper; verify aud in MCP resource server.
         JsonNode redeemed = post("JWT_BEARER_GRANT", cfg.travelIssuer() + "/protocol/openid-connect/token", grant);
         String token3 = required(redeemed, "access_token", "JWT_BEARER_GRANT");
-        reportTokenClaims(DemoMode.DELEGATED, resource, token3, id, false, user.getName());
+        reportTokenClaims(DemoMode.DELEGATED, resource, token3, id, false, UserDisplayName.of(user));
         long expires = redeemed.path("expires_in").asLong(60);
         session.setAttribute(key, new Cached(token3, Instant.now().plusSeconds(expires), fingerprint));
-        inspector.publish("JWT_GRANT_REDEEMED", "", "", user.getName(), "travel-agent",
+        inspector.publish("JWT_GRANT_REDEEMED", "", "", UserDisplayName.of(user), "travel-agent",
                 "Travel token issued for " + resource + " (audience must be verified by resource server)", id);
         return token3;
     }

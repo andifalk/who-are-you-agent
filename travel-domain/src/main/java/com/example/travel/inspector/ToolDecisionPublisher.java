@@ -52,7 +52,7 @@ public class ToolDecisionPublisher {
             if (auth instanceof JwtAuthenticationToken jwt) {
                 var token = jwt.getToken();
                 // Subject may identify a human or service account. azp identifies the OAuth client.
-                event.put("human", Objects.toString(token.getSubject(), ""));
+                event.put("human", displayName(token.getClaims(), Objects.toString(token.getSubject(), "")));
                 Object azp = token.getClaims().get("azp");
                 event.put("agent", azp instanceof String ? azp : "");
                 event.put("issuer", Objects.toString(token.getClaims().get("iss"), ""));
@@ -71,6 +71,17 @@ public class ToolDecisionPublisher {
         } catch (Exception failure) {
             log.warn("Inspector event unavailable correlationId={} tool={} failureType={}", id, tool, failure.getClass().getName());
         }
+    }
+
+    // Display metadata only; authorization and business ownership continue to use the JWT subject.
+    private static String displayName(Map<String, Object> claims, String subject) {
+        String first = claims.get("given_name") instanceof String value ? value.trim() : "";
+        String last = claims.get("family_name") instanceof String value ? value.trim() : "";
+        String full = (first + " " + last).trim();
+        if (!full.isEmpty()) return full;
+        if (claims.get("name") instanceof String name && !name.isBlank()) return name.trim();
+        if (claims.get("preferred_username") instanceof String username && !username.isBlank()) return username.trim();
+        return subject;
     }
 
     private String correlationId() {

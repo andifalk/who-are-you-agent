@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1" name="viewport">
@@ -100,39 +100,39 @@
 <h1>Who Are You, Agent?</h1>
 <p>Travel Booking &amp; Expenses · Google ADK for Java · Gemini · Keycloak · MCP</p>
 <main>
-    <section><p id="identity">Lade Anmeldung …</p>
-        <label for="mode">Demo-Modus</label>
+    <section><p id="identity">Loading sign-in information …</p>
+        <label for="mode">Demo mode</label>
         <select id="mode">
             <option value="OVERPRIVILEGED">Demo 1 · Overprivileged Agent</option>
             <option value="DELEGATED">Demo 2 · Delegated Authorization</option>
             <option value="GOOGLE_AGENT_IDENTITY">Demo 3 · Google Agent Identity</option>
         </select>
-        <p class="hint">Die Auswahl wechselt ausschließlich die Agent-Credentials, nicht die MCP-Sicherheitsregeln.</p>
-        <label for="message">Anweisung</label>
+        <p class="hint">The selection changes only the agent credentials, not the MCP security rules.</p>
+        <label for="message">Instruction</label>
         <textarea id="message">Find the cheapest flight from Stuttgart to Berlin next Monday.</textarea>
         <p>
-            <button id="send">Agent ausführen</button>
+            <button id="send">Run agent</button>
         </p>
         <pre aria-live="polite" id="output"></pre>
     </section>
-    <aside><h3>Live-Demo Prompts</h3>
+    <aside><h3>Live demo prompts</h3>
         <p>
-            <button class="prompt" data-text="Find the cheapest flight from Stuttgart to Berlin next Monday.">Flug
-                suchen
+            <button class="prompt" data-text="Find the cheapest flight from Stuttgart to Berlin next Monday.">Search
+                flights
             </button>
         </p>
         <p>
             <button class="prompt"
                     data-text="Book flight FL-100 for Alice on next Monday and create the corresponding expense report.">
-                Buchen &amp; Expense
+                Book &amp; create expense
             </button>
         </p>
         <p>
-            <button class="prompt" data-text="Approve expense EXP-8000 for 8000 EUR.">EXP-8000 genehmigen</button>
+            <button class="prompt" data-text="Approve expense EXP-8000 for 8000 EUR.">Approve EXP-8000</button>
         </p>
-        <p><small>Erwartung: Demo 1 erlaubt die Genehmigung bei passendem Service-Account-Token. Demo 2 verweigert sie
-            serverseitig.</small></p>
-        <p><a href="/logout" id="logout">Abmelden (POST)</a></p>
+        <p><small>Expected: Demo 1 allows approval with a suitable service-account token. Demo 2 denies it
+            on the server.</small></p>
+        <p><a href="/logout" id="logout">Sign out (POST)</a></p>
     </aside>
 </main>
 <script>
@@ -147,13 +147,13 @@
     }
 
     fetch('/api/session').then(r => r.json()).then(x => {
-        document.querySelector('#identity').textContent = 'Angemeldet: ' + x.user;
+        document.querySelector('#identity').textContent = 'Signed in: ' + x.user;
         document.querySelector('#mode').value = x.mode
     });
     document.querySelector('#mode').addEventListener('change', async e => {
         try {
             await api('/api/mode', {mode: e.target.value});
-            document.querySelector('#output').textContent = 'Modus geändert'
+            document.querySelector('#output').textContent = 'Mode changed'
         } catch (err) {
             document.querySelector('#output').textContent = err.message
         }
@@ -162,7 +162,7 @@
     document.querySelector('#send').onclick = async () => {
         const b = document.querySelector('#send');
         b.disabled = true;
-        document.querySelector('#output').textContent = 'Agent arbeitet …';
+        document.querySelector('#output').textContent = 'Agent is working …';
         try {
             const x = await api('/api/chat', {message: document.querySelector('#message').value});
             document.querySelector('#output').textContent = x.text + '\n\nCorrelation ID: ' + x.correlationId

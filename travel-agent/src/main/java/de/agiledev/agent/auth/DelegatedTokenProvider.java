@@ -48,7 +48,7 @@ public class DelegatedTokenProvider {
     public String tokenFor(Resource resource, DemoMode mode, Authentication user, HttpServletRequest request, String correlationId) {
         if (mode == DemoMode.OVERPRIVILEGED) return serviceToken(resource, request.getSession(), correlationId);
         if (mode == DemoMode.GOOGLE_AGENT_IDENTITY)
-            throw new TokenAcquisitionException("AGENT_IDENTITY", "nicht implementiert", "Overprivileged oder Delegated auswählen");
+            throw new TokenAcquisitionException("AGENT_IDENTITY", "not implemented", "Select Overprivileged or Delegated");
         return delegated(resource, user, request, correlationId);
     }
 
@@ -60,11 +60,11 @@ public class DelegatedTokenProvider {
         } catch (org.springframework.security.oauth2.core.OAuth2AuthorizationException e) {
             throw oauthFailure("CORPORATE_LOGIN", 0, e.getError().getErrorCode());
         } catch (RuntimeException e) {
-            throw new TokenAcquisitionException("CORPORATE_LOGIN", "Corporate-Token nicht verfügbar",
-                    "OIDC-Konfiguration und Erreichbarkeit prüfen; erneut anmelden");
+            throw new TokenAcquisitionException("CORPORATE_LOGIN", "Corporate token unavailable",
+                    "Check OIDC configuration and connectivity; sign in again");
         }
         if (authorized == null || authorized.getAccessToken() == null)
-            throw new TokenAcquisitionException("CORPORATE_LOGIN", "kein Access-Token", "Erneut anmelden");
+            throw new TokenAcquisitionException("CORPORATE_LOGIN", "no access token", "Sign in again");
         String token1 = authorized.getAccessToken().getTokenValue();
         String fingerprint = Integer.toHexString(token1.hashCode()); // cache key only; never logged
         log.info("Corporate token issued with scopes [{}]", authorized.getAccessToken().getScopes());
@@ -138,8 +138,8 @@ public class DelegatedTokenProvider {
         var valueNode = node == null ? null : node.get(field);
         String value = valueNode != null && valueNode.isString() ? valueNode.asString() : null;
         if (value == null || value.isBlank())
-            throw new TokenAcquisitionException(step, "ungültige Token-Antwort",
-                    "Erwartetes Access-Token fehlt; Keycloak-Konfiguration prüfen");
+            throw new TokenAcquisitionException(step, "invalid token response",
+                    "Expected access token is missing; check Keycloak configuration");
         return value;
     }
 
@@ -154,15 +154,15 @@ public class DelegatedTokenProvider {
             return parseResponse(step, response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new TokenAcquisitionException(step, "Anfrage unterbrochen", "Anfrage erneut ausführen");
+            throw new TokenAcquisitionException(step, "request interrupted", "Retry the request");
         } catch (java.net.http.HttpTimeoutException e) {
-            throw new TokenAcquisitionException(step, "Zeitüberschreitung", "Keycloak-Erreichbarkeit prüfen");
+            throw new TokenAcquisitionException(step, "request timed out", "Check Keycloak connectivity");
         } catch (java.io.IOException e) {
-            throw new TokenAcquisitionException(step, "Verbindung fehlgeschlagen",
-                    "Keycloak-DNS, TLS-Zertifikate und Netzwerkverbindung prüfen");
+            throw new TokenAcquisitionException(step, "connection failed",
+                    "Check Keycloak DNS, TLS certificates, and network connectivity");
         } catch (IllegalArgumentException e) {
-            throw new TokenAcquisitionException(step, "ungültige Endpoint-Konfiguration",
-                    "CORPORATE_ISSUER und TRAVEL_ISSUER prüfen");
+            throw new TokenAcquisitionException(step, "invalid endpoint configuration",
+                    "Check CORPORATE_ISSUER and TRAVEL_ISSUER");
         }
     }
 
@@ -172,8 +172,8 @@ public class DelegatedTokenProvider {
             node = json.readTree(body);
         } catch (tools.jackson.core.JacksonException e) {
             if (status != 200) throw oauthFailure(step, status, "unknown");
-            throw new TokenAcquisitionException(step, "ungültige JSON-Antwort",
-                    "Token-Endpoint und vorgeschalteten Proxy prüfen");
+            throw new TokenAcquisitionException(step, "invalid JSON response",
+                    "Check the token endpoint and upstream proxy");
         }
         if (status != 200) {
             var error = node == null ? null : node.get("error");
@@ -191,16 +191,16 @@ public class DelegatedTokenProvider {
             default -> "unknown_error";
         };
         String hint = switch (code) {
-            case "invalid_client" -> "Client-ID, Client-Secret und Realm prüfen";
-            case "unauthorized_client", "unsupported_grant_type" -> "Berechtigung für den Grant-Typ prüfen; bei CLIENT_CREDENTIALS Service Accounts aktivieren";
-            case "invalid_grant" -> "Token/Assertion abgelaufen oder abgelehnt; erneut anmelden und Issuer-/Trust-Konfiguration prüfen";
-            case "invalid_scope" -> "Angeforderte Scopes und Client-Scope-Zuordnung prüfen";
-            case "invalid_target" -> "Exchange-Audience und erlaubte Ziel-Clients prüfen";
-            case "access_denied" -> "Keycloak-Policies und Token-Exchange-Berechtigungen prüfen";
-            case "invalid_request" -> "Grant-Parameter und Keycloak-Grant-Konfiguration prüfen";
-            default -> status == 404 ? "Realm und Token-Endpoint-Pfad prüfen"
-                    : status >= 500 ? "Keycloak oder vorgeschalteter Proxy nicht verfügbar; Serverlogs prüfen"
-                    : "Keycloak-Konfiguration und Serverlogs prüfen";
+            case "invalid_client" -> "Check client ID, client secret, and realm";
+            case "unauthorized_client", "unsupported_grant_type" -> "Check permission for the grant type; enable Service Accounts for CLIENT_CREDENTIALS";
+            case "invalid_grant" -> "Token/assertion expired or rejected; sign in again and check issuer/trust configuration";
+            case "invalid_scope" -> "Check requested scopes and client scope assignments";
+            case "invalid_target" -> "Check the exchange audience and allowed target clients";
+            case "access_denied" -> "Check Keycloak policies and Token Exchange permissions";
+            case "invalid_request" -> "Check grant parameters and Keycloak grant configuration";
+            default -> status == 404 ? "Check the realm and token endpoint path"
+                    : status >= 500 ? "Keycloak or upstream proxy unavailable; check server logs"
+                    : "Check Keycloak configuration and server logs";
         };
         return new TokenAcquisitionException(step,
                 (status > 0 ? "HTTP " + status + " " : "") + code, hint);

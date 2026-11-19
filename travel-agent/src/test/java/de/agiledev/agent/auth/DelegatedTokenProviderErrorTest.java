@@ -14,7 +14,7 @@ class DelegatedTokenProviderErrorTest {
                 "CLIENT_CREDENTIALS", 401,
                 "{\"error\":\"invalid_client\",\"error_description\":\"secret-client-password\"}"));
         assertTrue(error.getMessage().contains("CLIENT_CREDENTIALS: HTTP 401 invalid_client"));
-        assertTrue(error.getMessage().contains("Client-Secret"));
+        assertTrue(error.getMessage().contains("client secret"));
         assertFalse(error.getMessage().contains("secret-client-password"));
         assertNull(error.getCause());
     }
